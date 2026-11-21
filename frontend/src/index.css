@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { @apply h-full; }
+  body { @apply bg-surface-subtle font-sans text-ink antialiased; font-feature-settings: 'cv11', 'ss01'; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .panel { @apply rounded-panel bg-surface shadow-panel; }
+  .card { @apply rounded-card bg-surface-subtle; }
+  .label { @apply text-xs text-ink-muted; }
+  .input {
+    @apply h-9 w-full rounded-xl border border-surface-line bg-surface px-3 text-sm outline-none
+           transition-colors focus:border-brand focus:ring-2 focus:ring-brand-soft;
+  }
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: theme('colors.surface.line') transparent; }
+}
+
+/* Leaflet overrides */
+.leaflet-container { @apply font-sans; background: theme('colors.canvas.DEFAULT'); }
+.leaflet-control-attribution { @apply text-2xs; background: rgba(255,255,255,.7) !important; }
+.leaflet-div-icon { background: transparent; border: none; }
+.leaflet-tooltip.chip-tooltip {
+  @apply rounded-lg border-0 bg-ink px-2.5 py-1 font-mono text-xs text-white shadow-float;
+}
+.leaflet-tooltip.chip-tooltip::before { display: none; }
+@keyframes pulse-ring { 0% { transform: scale(.6); opacity: .9 } 100% { transform: scale(1.6); opacity: 0 } }
+.pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pulse-ring { animation: none; } }
+
+/* ---------- motion: every animation reflects a state change; disabled for reduced motion ---------- */
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@keyframes pop-in { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: none } }
+@keyframes slide-in-right { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: none } }
+@keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 theme('colors.brand.glow') } 100% { box-shadow: 0 0 0 8px transparent } }
+@keyframes shake { 0%,100% { transform: none } 25% { transform: translateX(-3px) } 75% { transform: translateX(3px) } }
+.anim-fade { animation: fade-in .18s ease-out both }
+.anim-page { animation: rise-in .24s cubic-bezier(.2,.8,.2,1) both }
+.anim-pop { animation: pop-in .16s cubic-bezier(.2,.8,.2,1) both; transform-origin: top right }
+.anim-slide { animation: slide-in-right .22s cubic-bezier(.2,.8,.2,1) both }
+.anim-flash { animation: flash .9s ease-out }
+.skeleton {
+  background: linear-gradient(90deg, theme('colors.surface.sunken') 25%, theme('colors.surface.subtle') 50%, theme('colors.surface.sunken') 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 8px;
+}
+.leaflet-marker-icon.vehicle-marker { transition: none; }
+.leaflet-fade-anim .leaflet-tile { transition: opacity .25s linear; }
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade, .anim-page, .anim-pop, .anim-slide, .anim-flash { animation: none !important; }
+  .skeleton { animation: none; }
+}

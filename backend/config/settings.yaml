@@ -1,0 +1,151 @@
+# ---------------------------------------------------------------------------
+# Intelligent Logistics – scenario & algorithm configuration.
+# Nothing in the code base hard-codes these values; every module reads them
+# from here (overridable through environment variables, see .env.example).
+# ---------------------------------------------------------------------------
+
+random_seed: 42
+
+city:
+  # The application runs on ONE map: the real road network of Vijayawada (Andhra Pradesh)
+  # from OpenStreetMap. ./set-up.sh downloads it once into backend/data/osm/ (Overpass API).
+  name: Vijayawada
+  source: osm
+  center_lat: 16.5106          # around Governorpet / Benz Circle
+  center_lon: 80.6340
+  osm:
+    radius_m: 3000
+    timeout_s: 120
+    retry_after_min: 30
+    cache_dir: data/osm
+    overpass_urls:
+      - https://overpass-api.de/api/interpreter
+      - https://overpass.kumi.systems/api/interpreter
+      - https://overpass.private.coffee/api/interpreter
+    highway_types: [motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
+                    tertiary, tertiary_link, residential, unclassified, living_street]
+    arterial_types: [motorway, trunk, primary, secondary]
+    speeds_kmh: { motorway: 70, trunk: 50, primary: 40, secondary: 35, tertiary: 30, residential: 22,
+                  unclassified: 22, living_street: 10, default: 22 }
+  # Generated grid city – used ONLY by the automated tests (CITY_SOURCE=synthetic) and to build
+  # graphs of controlled size for the scalability benchmarks. Never shown as the app's map.
+  name_locale: en_IN          # Faker locale used to generate street / customer names
+  grid_rows: 22
+  grid_cols: 28
+  block_size_m: 260           # spacing between intersections
+  jitter_ratio: 0.18          # random displacement of intersections (fraction of block)
+  edge_drop_probability: 0.07 # randomly removed street segments (irregular city)
+  diagonal_count: 3           # long diagonal avenues
+  arterial_every: 5           # every n-th row / column is an arterial road
+  speeds_kmh:
+    local: 28
+    arterial: 45
+    diagonal: 50
+  one_way_probability: 0.0    # fraction of local streets made one-way
+
+depots:
+  count: 1
+  placement: center           # center | random
+
+fleet:
+  vehicle_count: 10
+  types:                      # vehicles are drawn from these types (weighted)
+    - { model: "Mini Van",    prefix: VAN,    capacity_kg: 400, fuel_l_per_100km: 9.5,  co2_kg_per_l: 2.68, tank_l: 60,  weight: 4 }
+    - { model: "Cargo Van",   prefix: VAN,   capacity_kg: 750, fuel_l_per_100km: 11.5, co2_kg_per_l: 2.68, tank_l: 80,  weight: 4 }
+    - { model: "Light Truck", prefix: TRK, capacity_kg: 1200, fuel_l_per_100km: 16.0, co2_kg_per_l: 2.68, tank_l: 120, weight: 2 }
+  start_fuel_pct: { min: 0.55, max: 0.95 }
+  code_start: 100             # vehicle codes are <prefix>-<number>
+  driver_experience_years: { min: 1, max: 9 }
+
+orders:
+  initial_count: 100
+  weight_kg: { min: 2, max: 60 }
+  priorities:                 # name: [probability, lateness penalty multiplier]
+    high:   [0.2, 3.0]
+    medium: [0.5, 1.5]
+    low:    [0.3, 1.0]
+  service_time_min: { min: 3, max: 8 }
+  deadline_offset_min: { min: 90, max: 480 }   # deadline = shift start + offset
+  min_distance_from_depot_m: 300
+  time_window_min: { min: 60, max: 180 }      # ready = deadline - window (planned orders)
+  dynamic_ready_immediately: true              # orders placed during the day can be delivered right away
+  code_prefix: ORD
+
+schedule:
+  shift_start: "08:00"
+  shift_end: "20:00"
+
+objective:                    # Z = alpha*D + beta*T + gamma*L + delta*V + epsilon*W + zeta*B
+  alpha_distance_per_km: 1.0
+  beta_time_per_min: 0.5
+  gamma_lateness_per_min: 2.0
+  delta_vehicle_fixed: 2.0       # activating a vehicle (drivers are on shift anyway -> small)
+  # W = minutes each order waits between its ready time and delivery (customer latency).
+  # Makes idle vehicles take new orders instead of one vehicle collecting everything.
+  epsilon_waiting_per_min: 0.5
+  # B = sum over vehicles of (route hours)^2 – a convex workload-balance term: two 2-hour
+  # routes cost less than one 4-hour route, so idle vehicles share the work.
+  zeta_balance_per_h2: 12.0
+  capacity_violation_penalty: 1000.0
+  unassigned_penalty: 5000.0
+  # Maximum route duration (soft constraint, standard in duration-constrained VRP):
+  # minutes beyond this limit cost route_overtime_penalty_per_min each. Prevents one
+  # vehicle from being loaded with every new order when others are free.
+  max_route_duration_min: 300
+  route_overtime_penalty_per_min: 5.0
+
+algorithms:
+  default_shortest_path: astar        # dijkstra | astar | bidirectional_dijkstra
+  default_construction: clarke_wright # nearest_neighbour | clarke_wright | sweep
+  default_improvement: [two_opt, or_opt, relocate, swap]
+  local_search_max_iterations: 50
+  granular_neighbours: 12             # Toth & Vigo granular neighbourhood size
+  local_search_time_limit_s: 15
+  genetic:
+    population_size: 60
+    generations: 150
+    tournament_size: 4
+    crossover_rate: 0.9
+    mutation_rate: 0.2
+    elitism: 4
+    seed_with_heuristics: true
+    local_search_on_best: true
+    time_limit_s: 20
+  ortools_time_limit_s: 10
+  k_alternative_paths: 3              # Yen's algorithm for alternatives
+  floyd_warshall_max_nodes: 400
+
+simulation:
+  tick_interval_s: 1.0        # wall-clock time between ticks
+  minutes_per_tick: 1.0       # simulated minutes advanced per tick
+  random_events:
+    enabled: false
+    new_order_probability: 0.04
+    congestion_probability: 0.02
+    closure_probability: 0.01
+  congestion:
+    radius_m: 600
+    factor: { min: 1.8, max: 3.5 }
+    duration_min: { min: 30, max: 120 }
+  depot_reload_min: 6         # dwell time when a vehicle returns to pick up new parcels
+  event_feed_size: 50
+  reoptimize_strategy: insertion_plus_local_search   # insertion | insertion_plus_local_search | full
+
+benchmark:
+  graph_sizes: [[10, 10], [20, 20], [35, 35], [0, 0]]   # [0, 0] = the real Vijayawada map
+  path_queries: 40
+  vrp_sizes: [50, 100, 200]
+  optional_vrp_sizes: [500]          # offered in the UI, off by default (slow)
+  vrp_vehicles: 10
+  ga_generations: 60
+  experiment_timeout_s: 180          # each experiment runs in its own process and is killed after this
+  shortest_path_algorithms: [dijkstra, astar, bidirectional_dijkstra, floyd_warshall]
+  vrp_algorithms: [fifo, nearest_neighbour, clarke_wright, sweep, clarke_wright_ls, genetic, memetic_ga, ortools]
+
+ui:
+  # Public CARTO basemaps need no key. Override with MAP_TILE_URL in .env
+  # (use {apikey} in the URL to inject CARTO_API_KEY for keyed providers).
+  map_tile_url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+  map_tile_attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
+  map_tile_subdomains: "abcd"
+  default_basemap: auto        # auto (tiles for real roads, schematic for the generated city) | schematic | tiles
